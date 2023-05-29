@@ -1,0 +1,348 @@
+---
+id: islandora_open_nodes
+label: Create nodes from each FOXML File entity
+migration_group: foxml_to_islandora_open
+source:
+  plugin: dgi_migrate.source.migration
+  track_changes: true
+  migration: islandora_open_foxml_files
+  dsf_misc:
+    case_insensitive: &case_insensitive true
+    base_mods_node: &base_mods_node
+      plugin: dgi_migrate.process.xml.context_query
+      missing_behavior: skip_process
+      source: '@_mods_node'
+      xpath: '@_mods_xpath'
+    nested_mods_node: &nested_mods_node
+      plugin: dgi_migrate.process.xml.context_query
+      source: 'parent_value'
+      xpath: 'parent_row/dest/_mods_xpath'
+    generic_term:
+      after: &generic_term_after
+        _auth_value_uri:
+          - << : *nested_mods_node
+            query: 'string(@valueURI)'
+            method: evaluate
+        _auth_source:
+          - << : *nested_mods_node
+            query: 'string(@authority)'
+            method: evaluate
+        _value:
+          - << : *nested_mods_node
+            query: 'normalize-space(.)'
+            method: evaluate
+        actual:
+          - plugin: get
+            source:
+              - '@_auth_source'
+              - '@_auth_value_uri'
+              - '@_value'
+              # XXX: Needs to be provided wherever this is used, corresponding
+              # to the vocab in which to do the things.
+              - '@_vid'
+          - plugin: flatten
+          - plugin: migration_lookup
+            migration: islandora_open_stub_terms_generic
+            stub_id: islandora_open_stub_terms_generic
+      extract: &generic_term_extract
+        plugin: dgi_migrate.process.single_extract
+        index: [actual]
+destination:
+  plugin: entity:node
+  default_bundle: islandora_object
+  # XXX: We're not really dealing with translations here. To do so, seems like
+  # you would need separate migrations.
+  #translations: true
+  validate: &validate true
+process:
+  _node_foxml_parsed:
+    - plugin: dgi_migrate.load_entity
+      source: fid
+      entity_type: entity:file
+    - plugin: dgi_migrate.method
+      method: getFileUri
+    - plugin: foxml.parse
+  _models:
+    - plugin: dgi_migrate.method
+      source: '@_node_foxml_parsed'
+      method: models
+    - plugin: skip_on_empty
+      method: row
+  title:
+    - plugin: dgi_migrate.subproperty
+      source: '@_node_foxml_parsed'
+      property: label
+    - plugin: default_value
+      default_value: Untitled
+  created:
+    - plugin: dgi_migrate.subproperty
+      source: '@_node_foxml_parsed'
+      property: createdDate
+    - plugin: callback
+      callable: strtotime
+  status:
+    - plugin: dgi_migrate.subproperty
+      source: '@_node_foxml_parsed'
+      property: state
+    - plugin: static_map
+      map:
+        'Active': 1
+        'Inactive': 0
+        'Deleted': 0
+  uid:
+    - plugin: default_value
+      source: shared/default_uid
+      default_value: 0
+  field_pid:
+    - plugin: dgi_migrate.subproperty
+      source: '@_node_foxml_parsed'
+      property: PID
+  _i8_model_uri:
+    - plugin: static_map
+      source: '@_models'
+      bypass: false
+      map:
+        'info:fedora/islandora:sp_basic_image': 'http://purl.org/coar/resource_type/c_c513'
+        'info:fedora/islandora:sp_large_image_cmodel': 'http://purl.org/coar/resource_type/c_c513'
+        'info:fedora/ir:citationCModel': 'https://schema.org/DigitalDocument'
+        'info:fedora/islandora:sp_pdf': 'https://schema.org/DigitalDocument'
+        'info:fedora/islandora:sp_videoCModel': 'http://purl.org/coar/resource_type/c_12ce'
+        'info:fedora/islandora:collectionCModel': 'http://purl.org/dc/dcmitype/Collection'
+        'info:fedora/islandora:sp-audioCModel': 'http://purl.org/coar/resource_type/c_18cc'
+        'info:fedora/islandora:binaryObjectCModel': 'http://purl.org/coar/resource_type/c_1843'
+        'info:fedora/islandora:pageCModel': 'http://id.loc.gov/ontologies/bibframe/part'
+        'info:fedora/islandora:bookCModel': 'https://schema.org/Book'
+        'info:fedora/islandora:newspaperPageCModel': 'http://id.loc.gov/ontologies/bibframe/part'
+        'info:fedora/islandora:newspaperIssueCModel': 'https://schema.org/PublicationIssue'
+        'info:fedora/islandora:newspaperCModel': 'https://schema.org/Newspaper'
+        'info:fedora/islandora:compoundCModel': 'http://vocab.getty.edu/aat/300242735'
+        'info:fedora/islandora:sp_document': 'https://schema.org/DigitalDocument'
+  field_model:
+    - plugin: dgi_migrate.required_entity_lookup
+      source: '@_i8_model_uri'
+      bundle_key: vid
+      bundle: islandora_models
+      value_key: field_external_uri
+      entity_type: taxonomy_term
+      # XXX: migrate_plus's case comparison makes assumptions about the entity's
+      # "main" property... we want "uri", but it assumes "value".
+      ignore_case: true
+  field_display_hints:
+    - plugin: dgi_migrate.process.static_map
+      source: '@_i8_model_uri'
+      default_value: []
+      map:
+        - ['https://schema.org/DigitalDocument', ['http://mozilla.github.io/pdf.js']]
+        - ['http://purl.org/coar/resource_type/c_c513', ['http://openseadragon.github.io']]
+        - ['http://id.loc.gov/ontologies/bibframe/part', ['http://openseadragon.github.io']]
+    - plugin: flatten
+    - plugin: skip_on_empty
+      method: process
+    - plugin: entity_lookup
+      bundle_key: vid
+      bundle: islandora_display
+      value_key: field_external_uri
+      entity_type: taxonomy_term
+      # XXX: migrate_plus's case comparison makes assumptions about the entity's
+      # "main" property... we want "uri", but it assumes "value".
+      ignore_case: true
+  _rels_ext_xpath:
+    - plugin: dgi_migrate.subindex
+      index: 'RELS-EXT'
+      source: '@_node_foxml_parsed'
+    - plugin: dgi_migrate.method
+      method: getUri
+    # XXX: An issue in the passing off of paths/URIs to libxml prevents the use
+    # of "dgi_migrate.process.xml.domfile"
+    - plugin: callback
+      callable: file_get_contents
+    - plugin: dgi_migrate.process.xml.domstring
+    - plugin: dgi_migrate.process.xml.xpath
+      namespaces:
+        rdf: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#'
+        fedora-relations-external: 'info:fedora/fedora-system:def/relations-external#'
+        fedora-model: 'info:fedora/fedora-system:def/model#'
+        islandora-rels-ext: 'http://islandora.ca/ontology/relsext#'
+        islandora-rels-int: 'http://islandora.ca/ontology/relsint#'
+  _rels_ext_node:
+    - plugin: dgi_migrate.method
+      source: '@_rels_ext_xpath'
+      method: query
+      args: ['/rdf:RDF/*[self::rdf:Description or self::rdf:description]']
+    - plugin: callback
+      callable: iterator_to_array
+    - plugin: array_shift
+  _members:
+    - plugin: dgi_migrate.method
+      source: '@_node_foxml_parsed'
+      method: parents
+      args:
+        - [isMemberOf, isMemberOfCollection]
+    - plugin: multiple_values
+    - plugin: substr
+      start: 12
+    - plugin: single_value
+    - plugin: callback
+      callable: array_unique
+  _constituents:
+    - plugin: dgi_migrate.method
+      source: '@_node_foxml_parsed'
+      method: parents
+      args:
+        - [isConstituentOf]
+    - plugin: multiple_values
+    - plugin: substr
+      start: 12
+    - plugin: single_value
+    - plugin: callback
+      callable: array_unique
+  _constituent_count:
+    - plugin: skip_on_empty
+      source: '@_constituents'
+      method: process
+    - plugin: single_value
+    - plugin: callback
+      callable: count
+    # XXX: Constrain to 0 or 1 constituent relationships... for now.
+    - plugin: static_map
+      bypass: false
+      map:
+        0: 0
+        1: 1
+  _sequence_number:
+    - plugin: dgi_migrate.process.xml.context_query
+      source: '@_rels_ext_node'
+      xpath: '@_rels_ext_xpath'
+      query: 'islandora-rels-ext:isSequenceNumber'
+    - plugin: callback
+      callable: iterator_to_array
+    - plugin: multiple_values
+    - plugin: dgi_migrate.subproperty
+      property: nodeValue
+    - plugin: single_value
+  _constituent_sequence:
+    - plugin: skip_on_empty
+      source: '@_constituents'
+      method: process
+    - plugin: dgi_migrate_foxml_standard_mods.constituent_sequence
+      node: '@_rels_ext_node'
+      xpath: '@_rels_ext_xpath'
+    - plugin: skip_on_empty
+      method: row
+      message: 'Failed to grab the constituent sequence numbers.'
+  field_weight:
+    - plugin: flatten
+      source:
+        - '@_sequence_number'
+        - '@_constituent_sequence'
+    - plugin: null_coalesce
+    - plugin: skip_on_empty
+      method: process
+  _mods_xpath:
+    - plugin: dgi_migrate.subindex
+      index: 'MODS'
+      source: '@_node_foxml_parsed'
+      missing_behavior: skip_process
+    - plugin: dgi_migrate.method
+      method: getUri
+    # XXX: An issue in the passing off of paths/URIs to libxml prevents the use
+    # of "dgi_migrate.process.xml.domfile"
+    - plugin: callback
+      callable: file_get_contents
+    - plugin: dgi_migrate.process.xml.domstring
+      missing_behavior: skip_process
+    - plugin: dgi_migrate.process.xml.xpath
+      namespaces:
+        mods: 'http://www.loc.gov/mods/v3'
+        xsi: 'http://www.w3.org/2001/XMLSchema-instance'
+        xlink: 'http://www.w3.org/1999/xlink'
+  _mods_node:
+    - plugin: skip_on_empty
+      method: process
+      source: '@_mods_xpath'
+    - plugin: dgi_migrate.method
+      method: query
+      args:
+        - '//mods:mods[1]'
+    - plugin: callback
+      callable: iterator_to_array
+    - plugin: array_shift
+  field_description:
+    - << : *base_mods_node
+      query: 'mods:abstract'
+    - plugin: callback
+      callable: iterator_to_array
+    - plugin: multiple_values
+    - plugin: dgi_migrate.subproperty
+      property: nodeValue
+    - plugin: single_value
+    - plugin: null_coalesce
+  field_note:
+    - << : *base_mods_node
+      query: 'mods:physicalDescription/mods:note'
+    - plugin: callback
+      callable: iterator_to_array
+    - plugin: multiple_values
+    - plugin: dgi_migrate.subproperty
+      property: nodeValue
+    - plugin: single_value
+    - plugin: null_coalesce
+  _resource_type:
+    - <<: *base_mods_node
+      query: 'mods:typeOfResource'
+    - plugin: callback
+      callable: iterator_to_array
+    - plugin: multiple_values
+    - plugin: dgi_migrate.subproperty
+      property: nodeValue
+    - plugin: single_value
+    - plugin: callback
+      callable: array_filter
+  field_resource_type:
+    - plugin: default_value
+      source: '@_resource_type'
+      default_value: Unspecified
+    - plugin: entity_generate
+      bundle: resource_types
+      bundle_key: vid
+      entity_type: taxonomy_term
+      value_key: name
+      ignore_case: *case_insensitive
+  field_subject:
+    - << : *base_mods_node
+      query: 'mods:subject/mods:topic[normalize-space()]'
+    - plugin: callback
+      callable: iterator_to_array
+    - plugin: skip_on_empty
+      method: process
+    - plugin: multiple_values
+    - plugin: dgi_migrate.sub_process
+      process_values: true
+      values:
+        _vid:
+          - plugin: default_value
+            default_value: subject
+        <<: *generic_term_after
+    - <<: *generic_term_extract
+  nid:
+    - plugin: migration_lookup
+      source: '@field_pid'
+      migration: islandora_open_stub_nodes
+  field_member_of:
+    - plugin: flatten
+      source:
+        - '@_members'
+        - '@_constituents'
+    - plugin: multiple_values
+    - plugin: migration_lookup
+      migration: islandora_open_stub_nodes
+      stub_id: islandora_open_stub_nodes
+migration_dependencies:
+  required:
+    - islandora_open_foxml_files
+    - islandora_tags
+    - islandora_open_stub_nodes
+dependencies:
+  enforced:
+    module:
+      - islandora_open_migrate

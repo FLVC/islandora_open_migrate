@@ -1,0 +1,65 @@
+---
+id: islandora_open_foxml_files
+label: Create File entities from exported FOXML
+migration_group: foxml_to_islandora_open
+source:
+  plugin: foxml
+  track_changes: true
+  # XXX: WARNING: The target files should be made read-only, as rolling back
+  # a migration will TRY TO DELETE THE FILES!
+  # XXX: Target files should be in a directory underneath the path; otherwise,
+  # validation of the URI in the destination may fail (presumably, naive URI
+  # validation inside of Drupal, expecting HTTP-like URLs)... or may just
+  # require a third slash to imply an empty "authority" component?
+  cache_counts: true
+destination:
+  plugin: entity:file
+  validate: true
+process:
+  uri: uri
+  _validate:
+    # XXX: Initial safety business... try to avoid operating on files which are
+    # writable, to avoid potentially deleting them on a rollback.
+    - plugin: callback
+      callable: is_writable
+      source: '@uri'
+    - plugin: skip_on_value
+      value: true
+      method: row
+    - plugin: callback
+      callable: dirname
+      source: '@uri'
+    - plugin: callback
+      callable: is_writable
+    - plugin: skip_on_value
+      value: true
+      method: row
+  _parsed:
+    plugin: foxml.parse
+    source: path
+  created:
+    - plugin: dgi_migrate.subproperty
+      source: '@_parsed'
+      property: createdDate
+    - plugin: callback
+      callable: strtotime
+  changed:
+    - plugin: dgi_migrate.subproperty
+      source: '@_parsed'
+      property: lastModifiedDate
+    - plugin: callback
+      callable: strtotime
+  status:
+    - plugin: default_value
+      default_value: 1
+  uid:
+    - plugin: default_value
+      source: shared/default_uid
+      default_value: 0
+  filemime:
+    - plugin: default_value
+      default_value: application/xml
+dependencies:
+  enforced:
+    module:
+      - islandora_open_migrate

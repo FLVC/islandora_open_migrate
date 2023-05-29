@@ -1,0 +1,12 @@
+id: foxml_to_islandora_open
+label: FOXML with MODS to Nodes
+description: Mapping from Fedora 3 FOXML from I7 for demonstration purposes at Islandora Open.
+source_type: Directory of XML files
+shared_configuration:
+  source:
+    shared:
+      default_uid: 1
+dependencies:
+  enforced:
+    module:
+      - islandora_open_migrate
