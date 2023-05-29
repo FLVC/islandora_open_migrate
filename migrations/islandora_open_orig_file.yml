@@ -7,8 +7,8 @@ source:
   track_changes: true
   migration: islandora_open_foxml_files
   constants:
-    # todo: What should this be?
-    file_dest: 'repo-bin:/'
+    # This should be consistent with where your files are stored within Drupal.
+    file_dest: 'public:/'
 destination:
   plugin: entity:file
   validate: true
