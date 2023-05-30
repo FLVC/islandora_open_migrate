@@ -302,7 +302,7 @@ process:
     - plugin: default_value
       source: '@_resource_type'
       default_value: Unspecified
-    - plugin: entity_generate
+    - plugin: dgi_migrate.required_entity_lookup
       bundle: resource_types
       bundle_key: vid
       entity_type: taxonomy_term
