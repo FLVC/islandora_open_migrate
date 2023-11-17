@@ -3,7 +3,7 @@
     "type": "drupal-module",
     "license": "GPL-3.0-or-later",
     "require": {
-        "discoverygarden/akubra_adpater": "^1",
+        "discoverygarden/akubra_adapter": "^1",
         "discoverygarden/dgi_migrate": "^2"
     }
 }
