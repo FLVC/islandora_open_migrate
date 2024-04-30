@@ -1,9 +1,9 @@
 {
-    "name": "discoverygarden/islandora_open_migrate",
+    "name": "flvc/islandora_open_migrate",
     "type": "drupal-module",
     "license": "GPL-3.0-or-later",
     "require": {
         "discoverygarden/akubra_adapter": "^1",
-        "discoverygarden/dgi_migrate": "^2"
+        "flvc/dgi_migrate": "dev-flvc"
     }
 }
