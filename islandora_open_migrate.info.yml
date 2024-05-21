@@ -2,7 +2,7 @@ name: 'Islandora Open Migrate'
 description: "Demonstration module providing a sample FOXML migration."
 type: module
 package: Islandora Open
-core_version_requirement: ^9
+core_version_requirement: ^9 || ^10
 dependencies:
   - dgi_migrate:dgi_migrate
   - akubra_adapter:akubra_adapter
